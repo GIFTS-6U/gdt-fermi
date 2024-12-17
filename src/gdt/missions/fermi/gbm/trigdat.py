@@ -113,7 +113,7 @@ class Trigdat(FitsFileContextManager):
         """(list of str): The detectors that were triggered"""
         try:
             detmask = self.headers['PRIMARY']['DET_MASK']
-            detmask = np.array(list(detmask)).astype(bool)
+            detmask = np.array(list(detmask)).astype(int) == 1
         except:
             return None
         
@@ -157,7 +157,11 @@ class Trigdat(FitsFileContextManager):
             obj._trigrates = MaxRates.from_recarray(trigrate_data[0])
         obj._maxrates = [MaxRates.from_recarray(maxrate) for maxrate in
                          obj.hdulist['MAXRATES'].data]
-        obj._backrates = BackRates.from_recarray(obj.hdulist['BCKRATES'].data[0])
+        
+        try:
+            obj._backrates = BackRates.from_recarray(obj.hdulist['BCKRATES'].data[0])
+        except:
+            warnings.warn('No BCKRATES data in this file.', RuntimeWarning)      
         obj._fsw_locations = [FswLocation.from_recarray(ob_calc) \
                               for ob_calc in obj.hdulist['OB_CALC'].data]
         
@@ -700,10 +704,12 @@ class Trigdat(FitsFileContextManager):
         end_times2 = self._data['ENDTIME'][idx2]
 
         # find where bracketing timescale ends and inserted timescale begins
+        mask = end_times1 >= start_times2[0]
         if mask.sum():
-            mask = end_times1 >= start_times2[0]
-            start_idx =  (np.where(mask))[0][0]
+            start_idx = (np.where(mask))[0][0]
             idx = np.concatenate((idx1[0:start_idx], idx2))
+        else:
+            idx = np.concatenate((idx1, idx2))
 
         # find where inserted timescale ends and bracketing timescale begins again
         mask = start_times1 >= end_times2[-1]
@@ -1293,4 +1299,4 @@ class FswLocation:
             s += ' RA={0:.1f}, Dec={1:.1f}, err={2:.1f}>'.format(*self.location) 
         except:
             s += ' RA=None, Dec=None, err=None>'
-        return s      
+        return s
